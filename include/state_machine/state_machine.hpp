@@ -6,6 +6,7 @@
 #include "utility/logging.hpp"
 #include "visual/visual.hpp"
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cv_bridge/cv_bridge.h>
 #include <eigen3/Eigen/Eigen>
@@ -123,27 +124,39 @@ protected:
         }
         // 读imu的数据到安全区松开机械臂并做校准
 
+        auto temp_position_    = cap_.get_position();
+        size_t rectangle_index = 0;
         /*distance具体参数要进行测试*/
         while (true) {
             if (tcp_flag.load(std::memory_order::relaxed)) {
                 return;
             }
-            search_object(rescuing_color_,true);
-            auto temp_position_ = cap_.get_position();
 
-            for (size_t i = 0; i < temp_position_->size(); i++) {
-                // TODO!!!!!!!!!!!!!!
-                if (temp_position_->at(i).shape == fan::Visual::rectangle) { // 发送控制命令
-                    Command temp_command_;
-                    temp_command_.x       = static_cast<float>(temp_position_->at(i).position.x);
-                    temp_command_.y       = static_cast<float>(temp_position_->at(i).position.y);
-                    temp_command_.w       = static_cast<float>(0);
-                    temp_command_.event   = Event::None;
-                    temp_command_.roboarm = true;
-                    // command.angle_ = Angle{0, 0, 0, 0};
-                    command.store(&temp_command_);
+            while ([this, &temp_position_, &rectangle_index]() -> bool {
+                temp_position_ = cap_.get_position();
+                if (temp_position_->empty()) {
+                    return true;
                 }
-            }
+                for (size_t i = 0; i < temp_position_->size(); i++) {
+                    if (temp_position_->at(i).shape == fan::Visual::rectangle) {
+                        rectangle_index = i;
+                        return false;
+                    }
+                }
+                return true;
+            }()) {
+                using namespace std::chrono_literals;
+                search_object(rescuing_color_, true, 0s);
+            };
+
+            Command temp_command_;
+            temp_command_.x = static_cast<float>(temp_position_->at(rectangle_index).position.x);
+            temp_command_.y = static_cast<float>(temp_position_->at(rectangle_index).position.y);
+            temp_command_.w = static_cast<float>(0);
+            temp_command_.event   = Event::None;
+            temp_command_.roboarm = true;
+            // command.angle_ = Angle{0, 0, 0, 0};
+            command.store(&temp_command_);
         }
     }
 
@@ -203,7 +216,8 @@ protected:
                 }
                 return true;
             }()) {
-                search_object(rescuing_color_,false);
+                using namespace std::chrono_literals;
+                search_object(rescuing_color_, false, 2s);
             };
 
             for (size_t i = distance_min_index; i < temp_position_->size(); i++) {
@@ -264,13 +278,16 @@ private:
         close(client_fd);
     }
 
-    void search_object(const fan::Visual::COLOR& color, bool roboarm) {
+    void search_object(
+        const fan::Visual::COLOR& color, const bool& roboarm,
+        const std::chrono::seconds& wait_time) {
         using namespace std::chrono_literals;
-        auto entry_time_ = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point entry_time_ = std::chrono::steady_clock::now();
+        Command temp_command_;
+
         while (cap_.get_position()->empty()) {
             cap_.identify(color);
-            if (std::chrono::steady_clock::now() - entry_time_ >= 3s) {
-                Command temp_command_;
+            if (std::chrono::steady_clock::now() - entry_time_ >= wait_time) {
                 temp_command_.x       = static_cast<float>(0);
                 temp_command_.y       = static_cast<float>(0);
                 temp_command_.w       = static_cast<float>(0.05);
@@ -280,6 +297,13 @@ private:
                 command.store(&temp_command_);
             }
         }
+        temp_command_.x       = static_cast<float>(0);
+        temp_command_.y       = static_cast<float>(0);
+        temp_command_.w       = static_cast<float>(0);
+        temp_command_.event   = Event::None;
+        temp_command_.roboarm = roboarm;
+        // command.angle_ = Angle{0, 0, 0, 0};
+        command.store(&temp_command_);
     }
 
     int flag = 0; // 开始标志位
