@@ -18,7 +18,7 @@ public:
 
     std::atomic<bool> tcp_flag = std::atomic<bool>(false);
 
-    bool start() {
+    bool tcp_start() {
         server_fd = socket(AF_INET, SOCK_STREAM, 0);
         if (server_fd == -1) {
             std::cerr << "无法创建socket" << std::endl;
@@ -48,7 +48,7 @@ public:
             if (client_fd >= 0) {
                 std::cout << "接受到连接" << std::endl;
                 std::thread(&TCPServer::handle_client, this, client_fd).detach();
-                tcp_flag.store(1);
+                tcp_flag.store(true);
             }
         }
         return true;

@@ -5,6 +5,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
+set(CMAKE_BUILD_TYPE "Release")
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -19,6 +21,9 @@ find_package(std_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 # find\_package(libusb-1.0 REQUIRED)
 # include\_directories(${libusb-1.0\_INCLUDE\_DIRS})
@@ -52,6 +57,9 @@ ament_target_dependencies(
   OpenCV
   sensor_msgs
   cv_bridge
+  geometry_msgs
+  tf2
+  tf2_ros
 )
 target_link_libraries(${PROJECT_NAME} -lusb-1.0)
 install(

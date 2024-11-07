@@ -6,6 +6,7 @@
 #include <iterator>
 #include <memory>
 #include <opencv2/core/mat.hpp>
+#include <opencv2/highgui.hpp>
 #include <ostream>
 #include <unordered_map>
 #include <vector>
@@ -17,7 +18,8 @@ constexpr auto PI = 3.141592654;
 class Visual {
 public:
     explicit Visual()
-        : cap_() {
+        : cap_()
+        , debug_dst_(640, 480, 16) {
         if (!cap_.isOpened()) {
             throw std::runtime_error{"Failed to open camera!"};
         }
@@ -29,7 +31,8 @@ public:
     }
 
     explicit Visual(int index)
-        : cap_(index) {
+        : cap_(index)
+        , debug_dst_(640, 480, 16) {
         if (!cap_.isOpened()) {
             throw std::runtime_error{"Failed to open camera!"};
         }
@@ -53,7 +56,7 @@ public:
         double distance;
     };
 
-    ~Visual() { image_.release(); }
+    ~Visual() {}
 
     enum COLOR { NONE, RED, BLUE, BLACK, YELLOW };
 
@@ -62,14 +65,14 @@ public:
         return image_;
     }
 
-    const cv::Mat& debug() { return debug_dst_; }
+    const cv::Mat* debug() { return &debug_dst_; }
 
     void identify(const COLOR& color) {
-        position_.clear();
         cap_.read(image_);
 
-        cv::Mat hsv(image_.size(), image_.type());
-        cv::Mat dst(image_.size(), image_.type());
+        cv::Mat hsv = cv::Mat::zeros(image_.size(), image_.type());
+        cv::Mat dst = cv::Mat::zeros(image_.size(), image_.type());
+
         auto color_pra_ = color_identify_pra_.find(color)->second;
 
         cvtColor(image_, hsv, cv::COLOR_BGR2HSV);
@@ -86,9 +89,11 @@ public:
         }
         // cv::imshow("dst", dst);
         // cv::imshow("image", image_);
+        // cv::waitKey(1);
 
         // debug_dst_.release();
         dst.copyTo(debug_dst_);
+        // std::cout << image_.size() << std::endl << image_.type() << std::endl;
 
         cvtColor(dst, dst, cv::COLOR_BGR2GRAY); // 转化为灰度图
         cv::medianBlur(dst, dst, 9);            // 高斯滤波
@@ -101,7 +106,6 @@ public:
         std::vector<std::vector<cv::Point>> contours;
         contours.clear();
         findContours(dst, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
-        std::cout << "总个数：" << contours.size() << std::endl;
 
         // for (std::vector<std::vector<cv::Point>>::iterator it = contours.begin();
         //      it != contours.end(); ++it) {
@@ -120,10 +124,7 @@ public:
             // 打印出面积
             std::cout << area << std::endl;
             if (area <= 2000) {
-                // 进行接下来的操作
-                std::cout << "删除之前的个数：" << contours.size() << std::endl;
                 contours.erase(contours.begin() + i);
-                std::cout << "删除之后的个数：" << contours.size() << std::endl;
             }
         }
 
@@ -177,24 +178,18 @@ public:
             LOG_INFO("没有识别到物体");
 
         for (size_t i = 0; i < position_.size(); i++) {
-            if (position_[i].shape == circle) {
-            }
-            // LOG_INFO("第%d个形状为：圆形", i + 1);
-            else {}
-            // LOG_INFO("第%d个形状为：方形", i + 1);
+            if (position_[i].shape == circle)
+                LOG_INFO("第%d个形状为：圆形", i + 1);
+            else
+                LOG_INFO("第%d个形状为：方形", i + 1);
             // std::cout << "距离：" << position_[i].position << std::endl;
         }
-        image_.release();
-        dst.release();
-        hsv.release();
-        mask.release();
         contours_moments.clear();
 
         return;
     }
 
     void update_status() {
-
         identify(RED);
         color_position_.insert(
             std::pair<COLOR, std::vector<POSITION>>(RED, *(new std::vector<POSITION>(position_))));
@@ -214,8 +209,10 @@ public:
     const std::unordered_map<COLOR, std::vector<POSITION>>* get_color_position() {
         return &color_position_;
     }
+    void clear_color_position() { color_position_.clear(); }
 
     const std::vector<POSITION>* get_position() { return &position_; }
+    void clear_position() { position_.clear(); }
 
 private:
     cv::VideoCapture cap_;

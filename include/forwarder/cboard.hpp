@@ -2,7 +2,9 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <iostream>
 #include <mutex>
+#include <ostream>
 #include <stdexcept>
 #include <vector>
 
@@ -531,7 +533,6 @@ private:
 
     bool add_uart_transmission(
         CommandId field_id, const std::byte* uart_data, uint8_t uart_data_length) {
-
         std::byte* buffer =
             try_fetch_buffer(sizeof(UartFieldHeader) + (uart_data_length > 15) + uart_data_length);
         if (!buffer)
@@ -587,13 +588,16 @@ private:
     bool trigger_transmission_nocheck() {
         return free_transfers_.pop_front([](libusb_transfer* transfer) {
             int ret = libusb_submit_transfer(transfer);
+
             if (ret != 0) [[unlikely]] {
                 if (ret == LIBUSB_ERROR_NO_DEVICE)
                     LOG_ERROR(
                         "Failed to submit transmit transfer: Device disconnected. Terminating...");
                 else
                     LOG_ERROR("Failed to submit transmit transfer: %d. Terminating...", ret);
+
                 std::terminate();
+
             }
         });
     }

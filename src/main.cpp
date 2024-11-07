@@ -114,6 +114,7 @@
 // }
 
 #include "state_machine/state_machine.hpp"
+#include <atomic>
 #include <thread>
 
 int main(int argc, char** argv) {
@@ -129,10 +130,10 @@ int main(int argc, char** argv) {
     std::thread handle_thread_{[&statemachine_]() { statemachine_->handle_events(); }};
     handle_thread_.detach();
 
-    std::thread send_thread{[&statemachine_]() { statemachine_->send(); }};
+    std::thread send_thread{[&statemachine_]() { statemachine_->entrypoint(); }};
     send_thread.detach();
 
-    std::thread tcp_thread_{[&statemachine_]() { statemachine_->start(); }};
+    std::thread tcp_thread_{[&statemachine_]() { statemachine_->tcp_start(); }};
     tcp_thread_.detach();
 
     std::thread debug_thread_{[&statemachine_]() {
@@ -145,10 +146,9 @@ int main(int argc, char** argv) {
     constexpr double update_rate = 1000.0;
     constexpr auto update_period =
         std::chrono::round<std::chrono::steady_clock::duration>(1.0s / update_rate);
-
     auto next_iteration_time = std::chrono::steady_clock::now();
     while (running.load(std::memory_order::relaxed)) {
-        statemachine_->update();
+        statemachine_->send();
         next_iteration_time += update_period;
         std::this_thread::sleep_until(next_iteration_time);
     }
